@@ -1,11 +1,11 @@
-# Text Input Web App
+# Hungr-AI
 
-A simple React web application with a single input field in the middle of the page.
+Hungry? Get recommendations with this simple text input web application!
 
 ## Features
 
 - Clean, minimalist design
-- Centered text input field
+- Centered text input field for entering your food cravings
 - Real-time display of entered text
 - Responsive layout
 
@@ -21,7 +21,8 @@ A simple React web application with a single input field in the middle of the pa
 1. Clone this repository or navigate to the project directory:
 
 ```bash
-cd ~/CursorAppTest/text-input-app
+git clone https://github.com/kevinskim93/hungr-ai.git
+cd hungr-ai
 ```
 
 2. Install dependencies:
