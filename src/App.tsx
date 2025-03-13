@@ -15,7 +15,9 @@ interface FoodCraving {
 interface User {
   id: string;
   email: string;
-  user_metadata?: any;
+  user_metadata?: {
+    full_name?: string;
+  };
 }
 
 function App() {
@@ -35,6 +37,13 @@ function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [savedRestaurants, setSavedRestaurants] = useState<any[]>([]);
   const [savedRestaurantIds, setSavedRestaurantIds] = useState<Set<string>>(new Set());
+
+  // Handle home button click
+  const handleHomeClick = () => {
+    setShowAuth(false);
+    setError(null);
+    window.location.reload();
+  };
 
   // Check if user is already logged in
   useEffect(() => {
@@ -550,6 +559,9 @@ function App() {
   if (error) {
     return (
       <div className="App">
+        <button className="home-button" onClick={handleHomeClick}>
+          <span className="home-icon">🏠</span> Home
+        </button>
         <div className="input-container">
           <div className="title-container">
             <h1 className="heading">
@@ -568,15 +580,20 @@ function App() {
 
   return (
     <div className="App">
+      <button className="home-button" onClick={handleHomeClick}>
+        <span className="home-icon">🏠</span> Home
+      </button>
       <div className="input-container">
         {showAuth ? (
-          <Auth onLogin={handleLogin} />
+          <Auth onLogin={handleLogin} onHomeClick={handleHomeClick} />
         ) : (
           <>
             <div className="user-section">
               {user ? (
                 <div className="user-info">
-                  <span className="user-email">{user.email}</span>
+                  <span className="user-name">
+                    {user.user_metadata?.full_name || user.email}
+                  </span>
                   <button onClick={handleLogout} className="logout-button">
                     Logout
                   </button>

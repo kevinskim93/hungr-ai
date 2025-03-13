@@ -34,6 +34,7 @@ CREATE POLICY "Allow anonymous update access"
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
+  full_name TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   preferences JSONB DEFAULT '{}'::jsonb
@@ -60,6 +61,12 @@ CREATE POLICY "Users can insert their own data"
   FOR INSERT 
   WITH CHECK (auth.uid() = id);
 
+-- Allow the trigger function to insert data without RLS restrictions
+CREATE POLICY "Allow trigger function to insert user data" 
+  ON public.users 
+  FOR INSERT 
+  WITH CHECK (TRUE);
+
 -- Create a trigger to automatically update the updated_at field
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -78,8 +85,12 @@ EXECUTE FUNCTION update_updated_at();
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.users (id, email)
-  VALUES (NEW.id, NEW.email);
+  INSERT INTO public.users (id, email, full_name)
+  VALUES (
+    NEW.id, 
+    NEW.email,
+    NEW.raw_user_meta_data->>'full_name'
+  );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

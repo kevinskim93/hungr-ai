@@ -6,6 +6,7 @@
   align-items: center;
   background-color: #f5f5f5;
   padding: 20px;
+  position: relative;
 }
 
 .App-logo {
@@ -704,6 +705,12 @@
   gap: 10px;
 }
 
+.user-name {
+  font-size: 0.9rem;
+  color: #333;
+  font-weight: 500;
+}
+
 .user-email {
   font-size: 0.9rem;
   color: #555;
@@ -832,4 +839,32 @@
 
 .remove-saved-button:hover {
   color: #ff3366;
+}
+
+.home-button {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background-color: white;
+  border: 1px solid #0066ff;
+  color: #0066ff;
+  padding: 8px 15px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.home-button:hover {
+  background-color: #0066ff;
+  color: white;
+}
+
+.home-icon {
+  font-size: 1.1rem;
 }
