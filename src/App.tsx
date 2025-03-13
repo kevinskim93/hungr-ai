@@ -371,7 +371,11 @@ function App() {
     return (
       <div className="App">
         <div className="input-container">
-          <h1 className="heading">Hungr-AI</h1>
+          <div className="title-container">
+            <h1 className="heading">
+              <span className="typing-text"></span>
+            </h1>
+          </div>
           <div className="error-message">
             <h2>Something went wrong</h2>
             <p>{error}</p>
@@ -385,7 +389,12 @@ function App() {
   return (
     <div className="App">
       <div className="input-container">
-        <h1 className="heading">What are you craving?</h1>
+        <div className="title-container">
+          <h1 className="heading">
+            <span className="typing-text"></span>
+          </h1>
+          <p className="subtitle">What are you craving today?</p>
+        </div>
         {!dbConnected && (
           <div className="db-warning">
             <p>Running in demo mode. Database not connected.</p>

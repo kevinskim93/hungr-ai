@@ -57,11 +57,47 @@
   overflow-y: auto;
 }
 
+.title-container {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
 .heading {
-  font-size: 2.5rem;
+  font-size: 3rem;
   color: #333;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
   font-weight: 600;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+/* Subtitle animation */
+@keyframes fadeIn {
+  0%, 60% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  80%, 100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  color: #666;
+  margin-top: 0.5rem;
+  animation: fadeIn 6s ease-out forwards;
+}
+
+/* Remove these unused styles */
+.static-text,
+.animated-text,
+.text-first,
+.text-second,
+.heading::after {
+  display: none;
 }
 
 .input-form {
@@ -593,5 +629,63 @@
   }
   100% {
     width: calc(100% - 54px); /* 44px button width + 10px gap */
+  }
+}
+
+/* Title animation */
+@keyframes typing {
+  0%, 15% {
+    content: "hungr.ai";
+  }
+  17% {
+    content: "hungr.a";
+  }
+  19% {
+    content: "hungr.";
+  }
+  21% {
+    content: "hungr";
+  }
+  23%, 30% {
+    content: "hungr";
+  }
+  32% {
+    content: "hungry";
+  }
+  34%, 100% {
+    content: "hungry?";
+  }
+}
+
+.typing-text {
+  position: relative;
+  white-space: nowrap;
+  display: inline-block;
+  text-align: left;
+}
+
+.typing-text::after {
+  content: "";
+  position: absolute;
+  right: -10px;
+  top: 5%;
+  height: 90%;
+  width: 3px;
+  background-color: #0066ff;
+  animation: cursor-blink 1s step-end infinite;
+}
+
+.typing-text::before {
+  content: "hungr.ai";
+  animation: typing 5s forwards;
+  display: inline-block;
+}
+
+@keyframes cursor-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
   }
 }
