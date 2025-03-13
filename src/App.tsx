@@ -1,24 +1,39 @@
-import React from 'react';
-import logo from './logo.svg';
+import React, { useState } from 'react';
 import './App.css';
 
 function App() {
+  const [inputValue, setInputValue] = useState('');
+  const [submittedValue, setSubmittedValue] = useState('');
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(event.target.value);
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmittedValue(inputValue);
+  };
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <div className="input-container">
+        <h1 className="heading">What are you craving?</h1>
+        <form onSubmit={handleSubmit} className="input-form">
+          <input
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            placeholder="Enter text here..."
+            className="centered-input"
+          />
+          <button type="submit" className="submit-button">Enter</button>
+        </form>
+        {submittedValue && (
+          <div className="input-display">
+            <p>You submitted: {submittedValue}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
