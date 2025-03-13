@@ -2,6 +2,10 @@
 
 Hungry? Get recommendations with this simple text input web application!
 
+## About
+
+This app helps you decide what to eat by providing a simple interface to enter your food cravings.
+
 ## Features
 
 - Clean, minimalist design
