@@ -4,9 +4,10 @@ import { supabase } from './supabaseClient';
 import { googleMapsService, Restaurant, Review } from './services/googleMapsService';
 import { reviewAnalysisService } from './services/reviewAnalysisService';
 import Auth from './components/Auth';
+import { v4 as uuidv4 } from 'uuid';
 
 interface FoodCraving {
-  id: number;
+  id: number | string;
   created_at: string;
   text: string;
   recommendation?: string;
@@ -19,6 +20,15 @@ interface User {
     full_name?: string;
   };
 }
+
+interface AnonymousProfile {
+  id: string;
+  cravings: FoodCraving[];
+  lastVisit: string;
+}
+
+// Maximum number of cravings to store for anonymous users
+const MAX_ANONYMOUS_CRAVINGS = 5;
 
 function App() {
   const [inputValue, setInputValue] = useState('');
@@ -37,12 +47,87 @@ function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [savedRestaurants, setSavedRestaurants] = useState<any[]>([]);
   const [savedRestaurantIds, setSavedRestaurantIds] = useState<Set<string>>(new Set());
+  const [anonymousId, setAnonymousId] = useState<string>('');
 
   // Handle home button click
   const handleHomeClick = () => {
     setShowAuth(false);
     setError(null);
     window.location.reload();
+  };
+
+  // Initialize or retrieve anonymous user profile
+  useEffect(() => {
+    if (!user) {
+      initializeAnonymousProfile();
+    }
+  }, [user]);
+
+  const initializeAnonymousProfile = () => {
+    try {
+      // Try to get existing anonymous profile from localStorage
+      const storedProfile = localStorage.getItem('hungr_anonymous_profile');
+      
+      if (storedProfile) {
+        const profile: AnonymousProfile = JSON.parse(storedProfile);
+        setAnonymousId(profile.id);
+        
+        // Only set recent cravings if we don't have a logged-in user
+        if (!user && profile.cravings && profile.cravings.length > 0) {
+          setRecentCravings(profile.cravings);
+        }
+        
+        // Update last visit timestamp
+        profile.lastVisit = new Date().toISOString();
+        localStorage.setItem('hungr_anonymous_profile', JSON.stringify(profile));
+        
+        console.log('Retrieved anonymous profile:', profile.id);
+      } else {
+        // Create new anonymous profile
+        const newId = uuidv4();
+        setAnonymousId(newId);
+        
+        const newProfile: AnonymousProfile = {
+          id: newId,
+          cravings: [],
+          lastVisit: new Date().toISOString()
+        };
+        
+        localStorage.setItem('hungr_anonymous_profile', JSON.stringify(newProfile));
+        console.log('Created new anonymous profile:', newId);
+      }
+    } catch (error) {
+      console.error('Error managing anonymous profile:', error);
+      // If there's an error, create a new ID but don't try to store it
+      setAnonymousId(uuidv4());
+    }
+  };
+
+  // Save craving to anonymous profile in localStorage
+  const saveAnonymousCraving = (craving: FoodCraving) => {
+    try {
+      const storedProfile = localStorage.getItem('hungr_anonymous_profile');
+      
+      if (storedProfile) {
+        const profile: AnonymousProfile = JSON.parse(storedProfile);
+        
+        // Add new craving at the beginning
+        profile.cravings = [craving, ...profile.cravings];
+        
+        // Limit to MAX_ANONYMOUS_CRAVINGS
+        if (profile.cravings.length > MAX_ANONYMOUS_CRAVINGS) {
+          profile.cravings = profile.cravings.slice(0, MAX_ANONYMOUS_CRAVINGS);
+        }
+        
+        localStorage.setItem('hungr_anonymous_profile', JSON.stringify(profile));
+        
+        // Update state
+        setRecentCravings(profile.cravings);
+        console.log('Saved craving to anonymous profile');
+      }
+    } catch (error) {
+      console.error('Error saving anonymous craving:', error);
+    }
   };
 
   // Check if user is already logged in
@@ -64,6 +149,8 @@ function App() {
           setShowAuth(false);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
+          // Re-initialize anonymous profile when user logs out
+          initializeAnonymousProfile();
         }
       }
     );
@@ -140,13 +227,13 @@ function App() {
 
   // Fetch recent cravings when component mounts or user changes
   useEffect(() => {
-    if (dbConnected) {
+    if (dbConnected && user) {
       fetchRecentCravings();
     }
   }, [dbConnected, user]);
 
   const fetchRecentCravings = async () => {
-    if (!dbConnected) return;
+    if (!dbConnected || !user) return;
     
     try {
       let query = supabase
@@ -398,24 +485,37 @@ function App() {
   const storeInDatabase = async (text: string, recommendation: string) => {
     try {
       console.log('Storing in database:', { text, recommendation });
-      // Store the craving in Supabase
-      const { data, error } = await supabase
-        .from('food_cravings')
-        .insert([{ 
-          text, 
-          recommendation,
-          user_id: user?.id || null // Add user ID if available
-        }])
-        .select();
+      
+      if (user && dbConnected) {
+        // Store the craving in Supabase for logged-in users
+        const { data, error } = await supabase
+          .from('food_cravings')
+          .insert([{ 
+            text, 
+            recommendation,
+            user_id: user.id
+          }])
+          .select();
 
-      if (error) {
-        console.error('Error storing food craving:', error);
-        setError(`Error storing food craving: ${error.message}`);
-        return;
+        if (error) {
+          console.error('Error storing food craving:', error);
+          setError(`Error storing food craving: ${error.message}`);
+          return;
+        }
+
+        console.log('Successfully stored craving:', data);
+        fetchRecentCravings();
+      } else {
+        // Store in localStorage for anonymous users
+        const newCraving: FoodCraving = {
+          id: uuidv4(),
+          created_at: new Date().toISOString(),
+          text,
+          recommendation
+        };
+        
+        saveAnonymousCraving(newCraving);
       }
-
-      console.log('Successfully stored craving:', data);
-      fetchRecentCravings();
     } catch (error) {
       console.error('Error storing in database:', error);
       setError('Error storing in database. Check console for details.');
@@ -599,9 +699,14 @@ function App() {
                   </button>
                 </div>
               ) : (
-                <button onClick={toggleAuthModal} className="login-button">
-                  Login / Sign Up
-                </button>
+                <div className="user-info">
+                  {anonymousId && (
+                    <span className="anonymous-user">Guest User</span>
+                  )}
+                  <button onClick={toggleAuthModal} className="login-button">
+                    Login / Sign Up
+                  </button>
+                </div>
               )}
             </div>
             
@@ -776,7 +881,24 @@ function App() {
               </div>
             )}
             
-            {dbConnected && recentCravings.length > 0 && (
+            {!user && recentCravings.length > 0 && (
+              <div className="recent-cravings">
+                <h3>Your Recent Searches</h3>
+                <ul>
+                  {recentCravings.map((craving) => (
+                    <li key={craving.id}>
+                      <span className="craving-text">{craving.text}</span>
+                      {craving.recommendation && (
+                        <span className="craving-recommendation">→ {craving.recommendation}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="anonymous-note">Sign up to save your history permanently!</p>
+              </div>
+            )}
+            
+            {user && dbConnected && recentCravings.length > 0 && (
               <div className="recent-cravings">
                 <h3>Recent Cravings</h3>
                 <ul>

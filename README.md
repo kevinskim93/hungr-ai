@@ -13,6 +13,7 @@ Hungr-AI helps you decide what to eat by analyzing restaurant reviews and matchi
   - Secure login/logout functionality
   - Personalized experience with user-specific data
   - Profile information display
+  - Anonymous profiles for users who aren't logged in
 
 - **Restaurant Recommendations**
   - AI-powered restaurant suggestions based on your food cravings
@@ -31,6 +32,7 @@ Hungr-AI helps you decide what to eat by analyzing restaurant reviews and matchi
   - View and manage your saved restaurants
   - Track your food craving history
   - Filter recommendations based on your preferences
+  - Semi-persistent profiles for anonymous users using local storage
 
 - **User Interface**
   - Clean, minimalist design with intuitive navigation
@@ -43,18 +45,18 @@ Hungr-AI helps you decide what to eat by analyzing restaurant reviews and matchi
   - Google Maps API integration for finding nearby restaurants
   - Supabase database for secure data storage
   - Row-Level Security (RLS) for data protection
+  - Browser local storage for anonymous user data
 
 ## How It Works
 
 ### For Users Without Accounts
 
-1. **Enter Your Craving**: Type what you're hungry for in the input field
-2. **Get Recommendations**: The app searches nearby restaurants and analyzes their reviews
-3. **View Results**: See restaurants with reviews matching your craving, complete with:
-   - Restaurant details (name, address, rating)
-   - Photos when available
-   - Relevant reviews highlighting your search terms
-   - Extracted flavors and dishes mentioned in reviews
+1. **Anonymous Profile**: A unique ID is automatically generated and stored in your browser
+2. **Enter Your Craving**: Type what you're hungry for in the input field
+3. **Get Recommendations**: The app searches nearby restaurants and analyzes their reviews
+4. **View Results**: See restaurants with reviews matching your craving
+5. **Limited History**: Your last few searches are saved in your browser's local storage
+6. **Return Visits**: Your anonymous profile persists between visits until you clear your browser data
 
 ### For Registered Users
 
@@ -78,7 +80,9 @@ Hungr-AI helps you decide what to eat by analyzing restaurant reviews and matchi
    - Overall rating and number of reviews
    - Sentiment of matching reviews
    - Recency of reviews
-5. **Data Storage**: User data, cravings, and saved restaurants are securely stored in Supabase
+5. **Data Storage**: 
+   - For logged-in users: Data is securely stored in Supabase
+   - For anonymous users: Limited data is stored in browser local storage
 
 ## Getting Started
 

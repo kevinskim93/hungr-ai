@@ -868,3 +868,18 @@
 .home-icon {
   font-size: 1.1rem;
 }
+
+.anonymous-user {
+  font-size: 0.9rem;
+  color: #666;
+  font-style: italic;
+  margin-right: 10px;
+}
+
+.anonymous-note {
+  font-size: 0.85rem;
+  color: #0066ff;
+  font-style: italic;
+  margin-top: 10px;
+  text-align: center;
+}
