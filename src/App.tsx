@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import { supabase } from './supabaseClient';
-import { googleMapsService, Restaurant } from './services/googleMapsService';
+import { googleMapsService, Restaurant, Review } from './services/googleMapsService';
 import { reviewAnalysisService } from './services/reviewAnalysisService';
 
 interface FoodCraving {
@@ -23,6 +23,7 @@ function App() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [googleMapsReady, setGoogleMapsReady] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [matchingReviews, setMatchingReviews] = useState<Map<string, Review[]>>(new Map());
 
   // Check if Supabase is properly configured
   useEffect(() => {
@@ -133,6 +134,7 @@ function App() {
     setSubmittedValue(inputValue);
     setRestaurants([]);
     setSelectedRestaurant(null);
+    setMatchingReviews(new Map());
 
     try {
       // If Google Maps is ready, search for restaurants
@@ -174,17 +176,58 @@ function App() {
         reviewAnalysisService.analyzeRestaurantReviews(restaurant)
       );
 
-      // Rank restaurants based on user input
+      // Find reviews that match the user's input
+      const reviewMatches = new Map<string, Review[]>();
+      const queryTerms = query.toLowerCase().split(' ');
+      
+      analyzedRestaurants.forEach(restaurant => {
+        const matchingReviews = restaurant.reviews.filter(review => {
+          // Check if review text contains any of the query terms
+          const reviewText = review.text.toLowerCase();
+          return queryTerms.some(term => 
+            term.length > 3 && reviewText.includes(term)
+          ) || 
+          // Or if extracted flavors/dishes match query terms
+          (review.extractedFlavors?.some(flavor => 
+            queryTerms.includes(flavor.toLowerCase())
+          )) ||
+          (review.extractedDishes?.some(dish => 
+            queryTerms.some(term => dish.toLowerCase().includes(term))
+          ));
+        });
+        
+        // Sort matching reviews by recency
+        const sortedReviews = matchingReviews.sort((a, b) => b.time - a.time);
+        
+        // Store up to 3 most recent matching reviews
+        if (sortedReviews.length > 0) {
+          reviewMatches.set(restaurant.id, sortedReviews.slice(0, 3));
+        }
+      });
+      
+      setMatchingReviews(reviewMatches);
+
+      // Rank restaurants based on user input and matching reviews
       const rankedRestaurants = reviewAnalysisService.rankRestaurantsByUserInput(
         analyzedRestaurants,
         query
       );
 
+      // Filter to only include restaurants with matching reviews
+      const restaurantsWithMatchingReviews = rankedRestaurants.filter(
+        restaurant => reviewMatches.has(restaurant.id)
+      );
+      
+      // If no restaurants have matching reviews, show all ranked restaurants
+      const restaurantsToShow = restaurantsWithMatchingReviews.length > 0 
+        ? restaurantsWithMatchingReviews 
+        : rankedRestaurants;
+
       // Store the restaurants
-      setRestaurants(rankedRestaurants);
+      setRestaurants(restaurantsToShow);
 
       // Select the top restaurant
-      const topRestaurant = rankedRestaurants[0];
+      const topRestaurant = restaurantsToShow[0];
       setSelectedRestaurant(topRestaurant);
 
       // Generate a recommendation based on the top restaurant
@@ -284,6 +327,45 @@ function App() {
     }
   };
 
+  // Helper function to highlight matching terms in review text
+  const highlightMatchingTerms = (text: string, query: string): React.ReactNode => {
+    const queryTerms = query.toLowerCase().split(' ').filter(term => term.length > 3);
+    
+    if (queryTerms.length === 0) {
+      return <span>{text}</span>;
+    }
+    
+    const parts = [];
+    let lastIndex = 0;
+    
+    // Simple regex to find all matches
+    const regex = new RegExp(`(${queryTerms.join('|')})`, 'gi');
+    let match;
+    
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before match
+      if (match.index > lastIndex) {
+        parts.push(<span key={`text-${lastIndex}`}>{text.substring(lastIndex, match.index)}</span>);
+      }
+      
+      // Add highlighted match
+      parts.push(
+        <span key={`highlight-${match.index}`} className="highlight-match">
+          {match[0]}
+        </span>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(<span key={`text-${lastIndex}`}>{text.substring(lastIndex)}</span>);
+    }
+    
+    return <>{parts}</>;
+  };
+
   // If there's a critical error, show a fallback UI
   if (error) {
     return (
@@ -316,7 +398,7 @@ function App() {
             <p>Add your Google Maps API key to the .env file.</p>
           </div>
         )}
-        <form onSubmit={handleSubmit} className="input-form">
+        <form onSubmit={handleSubmit} className={`input-form ${inputValue.trim() ? 'has-input' : ''}`}>
           <input
             type="text"
             value={inputValue}
@@ -325,60 +407,100 @@ function App() {
             className="centered-input"
             disabled={isLoading}
           />
-          <button 
-            type="submit" 
-            className="submit-button"
-            disabled={isLoading || !inputValue.trim()}
-          >
-            {isLoading ? 'Thinking...' : 'Enter'}
-          </button>
+          {inputValue.trim() && (
+            <button 
+              type="submit" 
+              className="submit-button"
+              disabled={isLoading}
+              aria-label="Submit"
+            >
+              {isLoading ? (
+                <span className="loading-spinner"></span>
+              ) : (
+                <span className="arrow-up"></span>
+              )}
+            </button>
+          )}
         </form>
         
         {isLoading && (
           <div className="loading-message">
-            <p>Finding the perfect recommendation for you...</p>
+            <p>Finding restaurants with reviews matching "{inputValue}"...</p>
           </div>
         )}
         
-        {!isLoading && submittedValue && recommendation && (
-          <div className="recommendation-display">
-            <p>Based on your craving for <strong>{submittedValue}</strong>:</p>
-            <h2>{recommendation}</h2>
+        {!isLoading && submittedValue && restaurants.length > 0 && (
+          <div className="restaurants-container">
+            <h2 className="results-heading">Restaurants with "{submittedValue}" in reviews:</h2>
             
-            {selectedRestaurant && (
-              <div className="restaurant-details">
-                <div className="restaurant-info">
-                  <p className="restaurant-address">{selectedRestaurant.vicinity}</p>
+            {restaurants.map((restaurant, index) => (
+              <div key={restaurant.id} className={`restaurant-card ${index === 0 ? 'featured-restaurant' : ''}`}>
+                <div className="restaurant-header">
+                  <h3 className="restaurant-title">{restaurant.name}</h3>
                   <div className="restaurant-rating">
-                    <span className="stars">{'★'.repeat(Math.round(selectedRestaurant.rating))}</span>
-                    <span className="rating-count">({selectedRestaurant.userRatingsTotal} reviews)</span>
+                    <span className="stars">{'★'.repeat(Math.round(restaurant.rating))}</span>
+                    <span className="rating-count">({restaurant.userRatingsTotal} reviews)</span>
                   </div>
                 </div>
                 
-                {selectedRestaurant.photos && selectedRestaurant.photos.length > 0 && (
+                <p className="restaurant-address">{restaurant.vicinity}</p>
+                
+                {restaurant.photos && restaurant.photos.length > 0 && (
                   <div className="restaurant-photo">
-                    <img src={selectedRestaurant.photos[0]} alt={selectedRestaurant.name} />
+                    <img src={restaurant.photos[0]} alt={restaurant.name} />
+                  </div>
+                )}
+                
+                {matchingReviews.has(restaurant.id) && (
+                  <div className="matching-reviews">
+                    <h4>Reviews mentioning "{submittedValue}":</h4>
+                    <div className="reviews-list">
+                      {matchingReviews.get(restaurant.id)?.map((review, reviewIndex) => (
+                        <div key={`${restaurant.id}-review-${reviewIndex}`} className="review-item">
+                          <div className="review-header">
+                            <span className="review-author">{review.authorName}</span>
+                            <span className="review-rating">
+                              {'★'.repeat(Math.round(review.rating))}
+                            </span>
+                            <span className="review-time">{review.relativeTimeDescription}</span>
+                          </div>
+                          <p className="review-text">
+                            {highlightMatchingTerms(review.text, submittedValue)}
+                          </p>
+                          {review.extractedFlavors && review.extractedFlavors.length > 0 && (
+                            <div className="review-flavors">
+                              <span className="flavor-label">Flavors: </span>
+                              {review.extractedFlavors.map((flavor, i) => (
+                                <span key={`flavor-${i}`} className="flavor-tag">
+                                  {flavor}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {review.extractedDishes && review.extractedDishes.length > 0 && (
+                            <div className="review-dishes">
+                              <span className="dish-label">Dishes: </span>
+                              {review.extractedDishes.map((dish, i) => (
+                                <span key={`dish-${i}`} className="dish-tag">
+                                  {dish}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
-            )}
+            ))}
           </div>
         )}
         
-        {restaurants.length > 1 && (
-          <div className="other-restaurants">
-            <h3>Other restaurants you might like:</h3>
-            <ul className="restaurant-list">
-              {restaurants.slice(1, 4).map(restaurant => (
-                <li key={restaurant.id} className="restaurant-item">
-                  <div className="restaurant-name">{restaurant.name}</div>
-                  <div className="restaurant-rating">
-                    <span className="stars">{'★'.repeat(Math.round(restaurant.rating))}</span>
-                    <span className="rating-count">({restaurant.userRatingsTotal})</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+        {!isLoading && submittedValue && restaurants.length === 0 && recommendation && (
+          <div className="recommendation-display">
+            <p>Based on your craving for <strong>{submittedValue}</strong>:</p>
+            <h2>{recommendation}</h2>
           </div>
         )}
         

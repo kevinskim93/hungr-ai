@@ -68,6 +68,7 @@
   display: flex;
   width: 100%;
   gap: 10px;
+  position: relative;
 }
 
 .centered-input {
@@ -80,12 +81,29 @@
   transition: border-color 0.3s;
 }
 
+/* When the form has input, animate the input field width */
+.has-input .centered-input {
+  animation: slideInput 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
 .centered-input:focus {
   border-color: #0066ff;
 }
 
+/* Animation for the submit button appearance */
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .submit-button {
-  padding: 12px 20px;
+  padding: 10px;
   font-size: 18px;
   background-color: #0066ff;
   color: white;
@@ -93,6 +111,12 @@
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  animation: fadeInScale 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .submit-button:hover:not(:disabled) {
@@ -106,6 +130,71 @@
 .submit-button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+}
+
+/* Animation for the arrow appearance */
+@keyframes arrowAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.arrow-up {
+  font-size: 22px;
+  font-weight: bold;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  animation: arrowAppear 0.5s ease-out 0.1s both;
+}
+
+/* Animation for the arrow border */
+@keyframes arrowGlow {
+  0%, 100% {
+    border-bottom-width: 12px;
+  }
+  50% {
+    border-bottom-width: 14px;
+  }
+}
+
+/* Create a custom arrow that's more uniform */
+.arrow-up::before {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 12px solid white;
+  animation: arrowGlow 2s ease-in-out infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
 }
 
 .input-display {
@@ -327,6 +416,151 @@
   margin-bottom: 5px;
 }
 
+/* Restaurant cards styling */
+.restaurants-container {
+  margin-top: 30px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.results-heading {
+  color: #333;
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.restaurant-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  transition: transform 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.restaurant-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.featured-restaurant {
+  border-left: 4px solid #0066ff;
+  background-color: #f8fbff;
+}
+
+.restaurant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.restaurant-title {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #0066ff;
+}
+
+.restaurant-address {
+  color: #666;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Reviews styling */
+.matching-reviews {
+  margin-top: 15px;
+  border-top: 1px solid #eee;
+  padding-top: 15px;
+}
+
+.matching-reviews h4 {
+  margin: 0 0 15px 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.review-item {
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  padding: 15px;
+  font-size: 0.9rem;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-author {
+  font-weight: 600;
+  color: #333;
+}
+
+.review-rating {
+  color: #ffc107;
+}
+
+.review-time {
+  color: #999;
+  font-size: 0.8rem;
+}
+
+.review-text {
+  margin: 0 0 15px 0;
+  line-height: 1.5;
+}
+
+.highlight-match {
+  background-color: #fff3cd;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.review-flavors, .review-dishes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.flavor-label, .dish-label {
+  font-weight: 600;
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.flavor-tag, .dish-tag {
+  background-color: #e6f7ff;
+  color: #0066ff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+}
+
+.dish-tag {
+  background-color: #f0f7ff;
+  color: #0052cc;
+}
+
 /* Responsive adjustments */
 @media (max-width: 600px) {
   .input-container {
@@ -339,5 +573,25 @@
   
   .restaurant-list {
     flex-direction: column;
+  }
+  
+  .restaurant-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .review-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Animation for the input field when button appears */
+@keyframes slideInput {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: calc(100% - 54px); /* 44px button width + 10px gap */
   }
 }
