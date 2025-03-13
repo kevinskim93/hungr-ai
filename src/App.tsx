@@ -3,12 +3,19 @@ import './App.css';
 import { supabase } from './supabaseClient';
 import { googleMapsService, Restaurant, Review } from './services/googleMapsService';
 import { reviewAnalysisService } from './services/reviewAnalysisService';
+import Auth from './components/Auth';
 
 interface FoodCraving {
   id: number;
   created_at: string;
   text: string;
   recommendation?: string;
+}
+
+interface User {
+  id: string;
+  email: string;
+  user_metadata?: any;
 }
 
 function App() {
@@ -24,6 +31,40 @@ function App() {
   const [googleMapsReady, setGoogleMapsReady] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [matchingReviews, setMatchingReviews] = useState<Map<string, Review[]>>(new Map());
+  const [user, setUser] = useState<User | null>(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const [savedRestaurants, setSavedRestaurants] = useState<any[]>([]);
+  const [savedRestaurantIds, setSavedRestaurantIds] = useState<Set<string>>(new Set());
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data && data.session?.user) {
+        setUser(data.session.user as User);
+      }
+    };
+    
+    checkUser();
+    
+    // Set up auth state listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user as User);
+          setShowAuth(false);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+        }
+      }
+    );
+    
+    return () => {
+      if (authListener && authListener.subscription) {
+        authListener.subscription.unsubscribe();
+      }
+    };
+  }, []);
 
   // Check if Supabase is properly configured
   useEffect(() => {
@@ -88,22 +129,29 @@ function App() {
     }
   };
 
-  // Fetch recent cravings when component mounts
+  // Fetch recent cravings when component mounts or user changes
   useEffect(() => {
     if (dbConnected) {
       fetchRecentCravings();
     }
-  }, [dbConnected]);
+  }, [dbConnected, user]);
 
   const fetchRecentCravings = async () => {
     if (!dbConnected) return;
     
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('food_cravings')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(5);
+      
+      // If user is logged in, filter by user_id
+      if (user) {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching recent cravings:', error);
@@ -118,6 +166,40 @@ function App() {
     } catch (error) {
       console.error('Error fetching recent cravings:', error);
       setError('Error fetching recent cravings. Check console for details.');
+    }
+  };
+
+  // Fetch saved restaurants when user changes
+  useEffect(() => {
+    if (user && dbConnected) {
+      fetchSavedRestaurants();
+    } else {
+      setSavedRestaurants([]);
+    }
+  }, [user, dbConnected]);
+  
+  const fetchSavedRestaurants = async () => {
+    if (!user || !dbConnected) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('saved_restaurants')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      
+      if (data) {
+        console.log('Fetched saved restaurants:', data.length);
+        setSavedRestaurants(data);
+        
+        // Update the set of saved restaurant IDs
+        const ids = new Set(data.map(item => item.restaurant_id));
+        setSavedRestaurantIds(ids);
+      }
+    } catch (error) {
+      console.error('Error fetching saved restaurants:', error);
     }
   };
 
@@ -310,7 +392,11 @@ function App() {
       // Store the craving in Supabase
       const { data, error } = await supabase
         .from('food_cravings')
-        .insert([{ text, recommendation }])
+        .insert([{ 
+          text, 
+          recommendation,
+          user_id: user?.id || null // Add user ID if available
+        }])
         .select();
 
       if (error) {
@@ -366,6 +452,100 @@ function App() {
     return <>{parts}</>;
   };
 
+  const handleLogin = (user: User) => {
+    setUser(user);
+    setShowAuth(false);
+    
+    // Refresh data for the logged-in user
+    if (dbConnected) {
+      fetchRecentCravings();
+      fetchSavedRestaurants();
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  const toggleAuthModal = () => {
+    setShowAuth(!showAuth);
+  };
+
+  const saveRestaurant = async (restaurant: Restaurant) => {
+    if (!user) {
+      // Prompt user to log in
+      setShowAuth(true);
+      return;
+    }
+    
+    try {
+      // Check if restaurant is already saved
+      const { data: existingData, error: checkError } = await supabase
+        .from('saved_restaurants')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('restaurant_id', restaurant.id)
+        .single();
+      
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
+        throw checkError;
+      }
+      
+      if (existingData) {
+        // Restaurant already saved, remove it
+        const { error: deleteError } = await supabase
+          .from('saved_restaurants')
+          .delete()
+          .eq('id', existingData.id);
+          
+        if (deleteError) throw deleteError;
+        
+        // Show success message
+        alert(`Removed ${restaurant.name} from favorites`);
+      } else {
+        // Save the restaurant
+        const { error: insertError } = await supabase
+          .from('saved_restaurants')
+          .insert([{
+            user_id: user.id,
+            restaurant_id: restaurant.id,
+            restaurant_name: restaurant.name,
+            restaurant_data: restaurant
+          }]);
+          
+        if (insertError) throw insertError;
+        
+        // Show success message
+        alert(`Saved ${restaurant.name} to favorites`);
+      }
+      
+      // Refresh the saved restaurants list
+      fetchSavedRestaurants();
+    } catch (error: any) {
+      console.error('Error saving restaurant:', error);
+      alert(`Error: ${error.message || 'Could not save restaurant'}`);
+    }
+  };
+
+  // Check if a restaurant is saved as favorite
+  const isRestaurantSaved = async (restaurantId: string): Promise<boolean> => {
+    if (!user) return false;
+    
+    try {
+      const { data, error } = await supabase
+        .from('saved_restaurants')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('restaurant_id', restaurantId)
+        .single();
+        
+      return !!data; // Return true if data exists
+    } catch (error) {
+      return false;
+    }
+  };
+
   // If there's a critical error, show a fallback UI
   if (error) {
     return (
@@ -389,144 +569,212 @@ function App() {
   return (
     <div className="App">
       <div className="input-container">
-        <div className="title-container">
-          <h1 className="heading">
-            <span className="typing-text"></span>
-          </h1>
-          <p className="subtitle">What are you craving today?</p>
-        </div>
-        {!dbConnected && (
-          <div className="db-warning">
-            <p>Running in demo mode. Database not connected.</p>
-            <p>Check README.md for setup instructions.</p>
-          </div>
-        )}
-        {!googleMapsReady && (
-          <div className="api-warning">
-            <p>Google Maps API not configured. Advanced restaurant recommendations are disabled.</p>
-            <p>Add your Google Maps API key to the .env file.</p>
-          </div>
-        )}
-        <form onSubmit={handleSubmit} className={`input-form ${inputValue.trim() ? 'has-input' : ''}`}>
-          <input
-            type="text"
-            value={inputValue}
-            onChange={handleInputChange}
-            placeholder="Enter food craving here..."
-            className="centered-input"
-            disabled={isLoading}
-          />
-          {inputValue.trim() && (
-            <button 
-              type="submit" 
-              className="submit-button"
-              disabled={isLoading}
-              aria-label="Submit"
-            >
-              {isLoading ? (
-                <span className="loading-spinner"></span>
-              ) : (
-                <span className="arrow-up"></span>
-              )}
-            </button>
-          )}
-        </form>
-        
-        {isLoading && (
-          <div className="loading-message">
-            <p>Finding restaurants with reviews matching "{inputValue}"...</p>
-          </div>
-        )}
-        
-        {!isLoading && submittedValue && restaurants.length > 0 && (
-          <div className="restaurants-container">
-            <h2 className="results-heading">Restaurants with "{submittedValue}" in reviews:</h2>
-            
-            {restaurants.map((restaurant, index) => (
-              <div key={restaurant.id} className={`restaurant-card ${index === 0 ? 'featured-restaurant' : ''}`}>
-                <div className="restaurant-header">
-                  <h3 className="restaurant-title">{restaurant.name}</h3>
-                  <div className="restaurant-rating">
-                    <span className="stars">{'★'.repeat(Math.round(restaurant.rating))}</span>
-                    <span className="rating-count">({restaurant.userRatingsTotal} reviews)</span>
-                  </div>
+        {showAuth ? (
+          <Auth onLogin={handleLogin} />
+        ) : (
+          <>
+            <div className="user-section">
+              {user ? (
+                <div className="user-info">
+                  <span className="user-email">{user.email}</span>
+                  <button onClick={handleLogout} className="logout-button">
+                    Logout
+                  </button>
                 </div>
-                
-                <p className="restaurant-address">{restaurant.vicinity}</p>
-                
-                {restaurant.photos && restaurant.photos.length > 0 && (
-                  <div className="restaurant-photo">
-                    <img src={restaurant.photos[0]} alt={restaurant.name} />
-                  </div>
-                )}
-                
-                {matchingReviews.has(restaurant.id) && (
-                  <div className="matching-reviews">
-                    <h4>Reviews mentioning "{submittedValue}":</h4>
-                    <div className="reviews-list">
-                      {matchingReviews.get(restaurant.id)?.map((review, reviewIndex) => (
-                        <div key={`${restaurant.id}-review-${reviewIndex}`} className="review-item">
-                          <div className="review-header">
-                            <span className="review-author">{review.authorName}</span>
-                            <span className="review-rating">
-                              {'★'.repeat(Math.round(review.rating))}
-                            </span>
-                            <span className="review-time">{review.relativeTimeDescription}</span>
-                          </div>
-                          <p className="review-text">
-                            {highlightMatchingTerms(review.text, submittedValue)}
-                          </p>
-                          {review.extractedFlavors && review.extractedFlavors.length > 0 && (
-                            <div className="review-flavors">
-                              <span className="flavor-label">Flavors: </span>
-                              {review.extractedFlavors.map((flavor, i) => (
-                                <span key={`flavor-${i}`} className="flavor-tag">
-                                  {flavor}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {review.extractedDishes && review.extractedDishes.length > 0 && (
-                            <div className="review-dishes">
-                              <span className="dish-label">Dishes: </span>
-                              {review.extractedDishes.map((dish, i) => (
-                                <span key={`dish-${i}`} className="dish-tag">
-                                  {dish}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              ) : (
+                <button onClick={toggleAuthModal} className="login-button">
+                  Login / Sign Up
+                </button>
+              )}
+            </div>
+            
+            <div className="title-container">
+              <h1 className="heading">
+                <span className="typing-text"></span>
+              </h1>
+              <p className="subtitle">What are you craving today?</p>
+            </div>
+            
+            {!dbConnected && (
+              <div className="db-warning">
+                <p>Running in demo mode. Database not connected.</p>
+                <p>Check README.md for setup instructions.</p>
               </div>
-            ))}
-          </div>
-        )}
-        
-        {!isLoading && submittedValue && restaurants.length === 0 && recommendation && (
-          <div className="recommendation-display">
-            <p>Based on your craving for <strong>{submittedValue}</strong>:</p>
-            <h2>{recommendation}</h2>
-          </div>
-        )}
-        
-        {dbConnected && recentCravings.length > 0 && (
-          <div className="recent-cravings">
-            <h3>Recent Cravings</h3>
-            <ul>
-              {recentCravings.map((craving) => (
-                <li key={craving.id}>
-                  <span className="craving-text">{craving.text}</span>
-                  {craving.recommendation && (
-                    <span className="craving-recommendation">→ {craving.recommendation}</span>
+            )}
+            
+            {!googleMapsReady && (
+              <div className="api-warning">
+                <p>Google Maps API not configured. Advanced restaurant recommendations are disabled.</p>
+                <p>Add your Google Maps API key to the .env file.</p>
+              </div>
+            )}
+            
+            <form onSubmit={handleSubmit} className={`input-form ${inputValue.trim() ? 'has-input' : ''}`}>
+              <input
+                type="text"
+                value={inputValue}
+                onChange={handleInputChange}
+                placeholder="Enter food craving here..."
+                className="centered-input"
+                disabled={isLoading}
+              />
+              {inputValue.trim() && (
+                <button 
+                  type="submit" 
+                  className="submit-button"
+                  disabled={isLoading}
+                  aria-label="Submit"
+                >
+                  {isLoading ? (
+                    <span className="loading-spinner"></span>
+                  ) : (
+                    <span className="arrow-up"></span>
                   )}
-                </li>
-              ))}
-            </ul>
-          </div>
+                </button>
+              )}
+            </form>
+            
+            {isLoading && (
+              <div className="loading-message">
+                <p>Finding restaurants with reviews matching "{inputValue}"...</p>
+              </div>
+            )}
+            
+            {!isLoading && submittedValue && restaurants.length > 0 && (
+              <div className="restaurants-container">
+                <h2 className="results-heading">Restaurants with "{submittedValue}" in reviews:</h2>
+                
+                {restaurants.map((restaurant, index) => (
+                  <div key={restaurant.id} className={`restaurant-card ${index === 0 ? 'featured-restaurant' : ''}`}>
+                    <div className="restaurant-header">
+                      <h3 className="restaurant-title">{restaurant.name}</h3>
+                      <div className="restaurant-rating">
+                        <span className="stars">{'★'.repeat(Math.round(restaurant.rating))}</span>
+                        <span className="rating-count">({restaurant.userRatingsTotal} reviews)</span>
+                      </div>
+                    </div>
+                    
+                    {user && (
+                      <button 
+                        onClick={() => saveRestaurant(restaurant)} 
+                        className={`save-restaurant-button ${savedRestaurantIds.has(restaurant.id) ? 'saved' : ''}`}
+                        title={savedRestaurantIds.has(restaurant.id) 
+                          ? `Remove ${restaurant.name} from favorites` 
+                          : `Save ${restaurant.name} to favorites`}
+                      >
+                        ♥
+                      </button>
+                    )}
+                    
+                    <p className="restaurant-address">{restaurant.vicinity}</p>
+                    
+                    {restaurant.photos && restaurant.photos.length > 0 && (
+                      <div className="restaurant-photo">
+                        <img src={restaurant.photos[0]} alt={restaurant.name} />
+                      </div>
+                    )}
+                    
+                    {matchingReviews.has(restaurant.id) && (
+                      <div className="matching-reviews">
+                        <h4>Reviews mentioning "{submittedValue}":</h4>
+                        <div className="reviews-list">
+                          {matchingReviews.get(restaurant.id)?.map((review, reviewIndex) => (
+                            <div key={`${restaurant.id}-review-${reviewIndex}`} className="review-item">
+                              <div className="review-header">
+                                <span className="review-author">{review.authorName}</span>
+                                <span className="review-rating">
+                                  {'★'.repeat(Math.round(review.rating))}
+                                </span>
+                                <span className="review-time">{review.relativeTimeDescription}</span>
+                              </div>
+                              <p className="review-text">
+                                {highlightMatchingTerms(review.text, submittedValue)}
+                              </p>
+                              {review.extractedFlavors && review.extractedFlavors.length > 0 && (
+                                <div className="review-flavors">
+                                  <span className="flavor-label">Flavors: </span>
+                                  {review.extractedFlavors.map((flavor, i) => (
+                                    <span key={`flavor-${i}`} className="flavor-tag">
+                                      {flavor}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {review.extractedDishes && review.extractedDishes.length > 0 && (
+                                <div className="review-dishes">
+                                  <span className="dish-label">Dishes: </span>
+                                  {review.extractedDishes.map((dish, i) => (
+                                    <span key={`dish-${i}`} className="dish-tag">
+                                      {dish}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {!isLoading && submittedValue && restaurants.length === 0 && recommendation && (
+              <div className="recommendation-display">
+                <p>Based on your craving for <strong>{submittedValue}</strong>:</p>
+                <h2>{recommendation}</h2>
+              </div>
+            )}
+            
+            {user && dbConnected && savedRestaurants.length > 0 && (
+              <div className="saved-restaurants">
+                <h3>Your Favorite Restaurants</h3>
+                <div className="saved-restaurants-list">
+                  {savedRestaurants.map((saved) => {
+                    const restaurant = saved.restaurant_data;
+                    return (
+                      <div key={saved.id} className="saved-restaurant-item">
+                        <div className="saved-restaurant-header">
+                          <h4 className="saved-restaurant-name">{restaurant.name}</h4>
+                          <button 
+                            onClick={() => saveRestaurant(restaurant)} 
+                            className="remove-saved-button"
+                            title="Remove from favorites"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <p className="saved-restaurant-address">{restaurant.vicinity}</p>
+                        {restaurant.rating && (
+                          <div className="saved-restaurant-rating">
+                            <span className="stars">{'★'.repeat(Math.round(restaurant.rating))}</span>
+                            <span className="rating-count">({restaurant.userRatingsTotal} reviews)</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
+            {dbConnected && recentCravings.length > 0 && (
+              <div className="recent-cravings">
+                <h3>Recent Cravings</h3>
+                <ul>
+                  {recentCravings.map((craving) => (
+                    <li key={craving.id}>
+                      <span className="craving-text">{craving.text}</span>
+                      {craving.recommendation && (
+                        <span className="craving-recommendation">→ {craving.recommendation}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

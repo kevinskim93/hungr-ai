@@ -689,3 +689,147 @@
     opacity: 0;
   }
 }
+
+/* User authentication styles */
+.user-section {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-email {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.login-button, .logout-button {
+  background-color: transparent;
+  border: 1px solid #0066ff;
+  color: #0066ff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.login-button:hover, .logout-button:hover {
+  background-color: #0066ff;
+  color: white;
+}
+
+.logout-button {
+  border-color: #ff3366;
+  color: #ff3366;
+}
+
+.logout-button:hover {
+  background-color: #ff3366;
+  color: white;
+}
+
+/* Save restaurant button */
+.save-restaurant-button {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: color 0.2s;
+  align-self: flex-end;
+  margin-top: -10px;
+  margin-right: 5px;
+}
+
+.save-restaurant-button:hover {
+  color: #ff3366;
+}
+
+.save-restaurant-button.saved {
+  color: #ff3366;
+}
+
+/* Saved restaurants section */
+.saved-restaurants {
+  margin-top: 40px;
+  width: 100%;
+  text-align: left;
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+}
+
+.saved-restaurants h3 {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+}
+
+.saved-restaurants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.saved-restaurant-item {
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  padding: 15px;
+  position: relative;
+  transition: transform 0.2s;
+}
+
+.saved-restaurant-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.saved-restaurant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.saved-restaurant-name {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0066ff;
+}
+
+.saved-restaurant-address {
+  color: #666;
+  margin: 0 0 8px 0;
+  font-size: 0.9rem;
+}
+
+.saved-restaurant-rating {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.remove-saved-button {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-saved-button:hover {
+  color: #ff3366;
+}
