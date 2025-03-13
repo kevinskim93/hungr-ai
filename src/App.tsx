@@ -15,13 +15,61 @@ function App() {
   const [recommendation, setRecommendation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [recentCravings, setRecentCravings] = useState<FoodCraving[]>([]);
+  const [dbConnected, setDbConnected] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Check if Supabase is properly configured
+  useEffect(() => {
+    try {
+      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+      const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+      
+      console.log('Environment variables check:');
+      console.log('- REACT_APP_SUPABASE_URL:', supabaseUrl ? 'Defined' : 'Not defined');
+      console.log('- REACT_APP_SUPABASE_ANON_KEY:', supabaseKey ? 'Defined' : 'Not defined');
+      
+      if (!supabaseUrl || supabaseUrl === 'your_supabase_url' || 
+          !supabaseKey || supabaseKey === 'your_supabase_anon_key') {
+        setDbConnected(false);
+        console.warn('Supabase credentials not configured. Running in demo mode.');
+      } else {
+        // Test the connection
+        testDatabaseConnection();
+      }
+    } catch (err) {
+      console.error('Error in Supabase configuration:', err);
+      setError('Error in Supabase configuration. Check console for details.');
+      setDbConnected(false);
+    }
+  }, []);
+
+  const testDatabaseConnection = async () => {
+    try {
+      const { error } = await supabase.from('food_cravings').select('count').limit(1);
+      if (error) {
+        console.error('Database connection test failed:', error);
+        setError(`Database connection error: ${error.message}`);
+        setDbConnected(false);
+      } else {
+        console.log('Database connection successful');
+      }
+    } catch (err) {
+      console.error('Error testing database connection:', err);
+      setError('Error testing database connection. Check console for details.');
+      setDbConnected(false);
+    }
+  };
 
   // Fetch recent cravings when component mounts
   useEffect(() => {
-    fetchRecentCravings();
-  }, []);
+    if (dbConnected) {
+      fetchRecentCravings();
+    }
+  }, [dbConnected]);
 
   const fetchRecentCravings = async () => {
+    if (!dbConnected) return;
+    
     try {
       const { data, error } = await supabase
         .from('food_cravings')
@@ -31,14 +79,17 @@ function App() {
 
       if (error) {
         console.error('Error fetching recent cravings:', error);
+        setError(`Error fetching recent cravings: ${error.message}`);
         return;
       }
 
       if (data) {
+        console.log('Fetched cravings:', data.length);
         setRecentCravings(data);
       }
     } catch (error) {
       console.error('Error fetching recent cravings:', error);
+      setError('Error fetching recent cravings. Check console for details.');
     }
   };
 
@@ -55,20 +106,7 @@ function App() {
     setSubmittedValue(inputValue);
 
     try {
-      // Store the craving in Supabase
-      const { data, error } = await supabase
-        .from('food_cravings')
-        .insert([{ text: inputValue }])
-        .select();
-
-      if (error) {
-        console.error('Error storing food craving:', error);
-        setIsLoading(false);
-        return;
-      }
-
-      // For now, we'll just simulate a recommendation
-      // In a real app, you might call an API or use more complex logic
+      // Generate a recommendation
       setTimeout(() => {
         const recommendations = [
           'Try a local Italian restaurant!',
@@ -84,27 +122,67 @@ function App() {
         setRecommendation(randomRecommendation);
         setIsLoading(false);
         
-        // Update the recommendation in the database
-        if (data && data[0]) {
-          supabase
-            .from('food_cravings')
-            .update({ recommendation: randomRecommendation })
-            .eq('id', data[0].id)
-            .then(() => {
-              fetchRecentCravings();
-            });
+        // Store in database if connected
+        if (dbConnected) {
+          storeInDatabase(inputValue, randomRecommendation);
         }
       }, 1500);
     } catch (error) {
       console.error('Error:', error);
       setIsLoading(false);
+      setError('Error generating recommendation. Please try again.');
     }
   };
+
+  const storeInDatabase = async (text: string, recommendation: string) => {
+    try {
+      console.log('Storing in database:', { text, recommendation });
+      // Store the craving in Supabase
+      const { data, error } = await supabase
+        .from('food_cravings')
+        .insert([{ text, recommendation }])
+        .select();
+
+      if (error) {
+        console.error('Error storing food craving:', error);
+        setError(`Error storing food craving: ${error.message}`);
+        return;
+      }
+
+      console.log('Successfully stored craving:', data);
+      fetchRecentCravings();
+    } catch (error) {
+      console.error('Error storing in database:', error);
+      setError('Error storing in database. Check console for details.');
+    }
+  };
+
+  // If there's a critical error, show a fallback UI
+  if (error) {
+    return (
+      <div className="App">
+        <div className="input-container">
+          <h1 className="heading">Hungr-AI</h1>
+          <div className="error-message">
+            <h2>Something went wrong</h2>
+            <p>{error}</p>
+            <p>Please check the console for more details.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="App">
       <div className="input-container">
         <h1 className="heading">What are you craving?</h1>
+        {!dbConnected && (
+          <div className="db-warning">
+            <p>Running in demo mode. Database not connected.</p>
+            <p>Check README.md for setup instructions.</p>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="input-form">
           <input
             type="text"
@@ -136,7 +214,7 @@ function App() {
           </div>
         )}
         
-        {recentCravings.length > 0 && (
+        {dbConnected && recentCravings.length > 0 && (
           <div className="recent-cravings">
             <h3>Recent Cravings</h3>
             <ul>
