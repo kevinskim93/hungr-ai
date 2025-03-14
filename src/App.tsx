@@ -48,6 +48,7 @@ function App() {
   const [savedRestaurants, setSavedRestaurants] = useState<any[]>([]);
   const [savedRestaurantIds, setSavedRestaurantIds] = useState<Set<string>>(new Set());
   const [anonymousId, setAnonymousId] = useState<string>('');
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // Handle home button click
   const handleHomeClick = () => {
@@ -655,6 +656,28 @@ function App() {
     }
   };
 
+  // Check scroll position to show/hide button
+  useEffect(() => {
+    const checkScrollTop = () => {
+      if (!showScrollTop && window.pageYOffset > 400) {
+        setShowScrollTop(true);
+      } else if (showScrollTop && window.pageYOffset <= 400) {
+        setShowScrollTop(false);
+      }
+    };
+    
+    window.addEventListener('scroll', checkScrollTop);
+    return () => window.removeEventListener('scroll', checkScrollTop);
+  }, [showScrollTop]);
+  
+  // Scroll to top function
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
   // If there's a critical error, show a fallback UI
   if (error) {
     return (
@@ -913,6 +936,14 @@ function App() {
                 </ul>
               </div>
             )}
+            
+            {/* Scroll to top button */}
+            <div 
+              className={`scroll-to-top ${showScrollTop ? 'visible' : ''}`} 
+              onClick={scrollToTop}
+            >
+              ↑
+            </div>
           </>
         )}
       </div>
